@@ -22,41 +22,56 @@ N, M = X.shape
 
 # Implementing model with PyMC
 with pm.Model() as model:
-    # Defining priors for informants' competence (D) & consensus answers (Z)
-    D = pm.Uniform('D', lower=0.5, upper=1, shape=N)  # Competence of each informant (between 0.5 and 1)
-    Z = pm.Bernoulli('Z', p=0.5, shape=M)  # Consensus for each question (Bernoulli with p=0.5)
-    
-    # Reshaping D for broadcasting (N informants & M questions)
-    D_reshaped = D[:, None]  # Shape N x 1, for broadcasting
-    
-    # Defining probability for each informant's response to each question
-    p = Z * D_reshaped + (1 - Z) * (1 - D_reshaped)  # p[i,j] = P(i answers j correctly)
+    # Defining priors
+    D = pm.Uniform("D", 0, 1, shape=N)
+    Z = pm.Bernoulli("Z", p=0.5, shape=M)
 
-    # Likelihood (observed data X)
-    X_obs = pm.Bernoulli('X_obs', p=p, observed=X)  # Likelihood of the observed data
-    
-    # Sampling from posterior
-    trace = pm.sample(2000, return_inferencedata=False)  # MCMC sampling (2000 draws)
+    # Computing probability matrix p_ij
+    D_reshaped = D[:, None]  # shape (N, 1)
+    p = Z * D_reshaped + (1 - Z) * (1 - D_reshaped)  # shape (N, M)
 
-#  Trace plots to assess convergence
-pm.plot_trace(trace)
+    # Likelihood
+    Y = pm.Bernoulli("Y", p=p, observed=X)
+
+    # Sampling
+    trace = pm.sample(2000, tune=2000, chains=4, target_accept=0.95, return_inferencedata=True)
+
+# Analyzing convergence
+summary = az.summary(trace, var_names=["D", "Z"])
+print("\nSummary:\n", summary)
+
+# Estimating informant competence
+competence_means = summary.loc[summary.index.str.startswith("D"), "mean"]
+most_competent = competence_means.idxmax()
+least_competent = competence_means.idxmin()
+
+print("\nInformant competence (posterior means):\n", competence_means)
+print(f"Most competent: {most_competent}")
+print(f"Least competent: {least_competent}")
+
+# Plot competence
+az.plot_posterior(trace, var_names=["D"], hdi_prob=0.94)
+plt.suptitle("Posterior Distributions of Informant Competence", y=1.02)
+plt.tight_layout()
 plt.show()
 
-# Posterior summary for D & Z
-posterior_summary = pm.summary(trace, var_names=["D", "Z"], hdi_prob=0.95)  # 95% HDI
-print(posterior_summary)
+# --- Consensus answers ---
+z_means = summary.loc[summary.index.str.startswith("Z"), "mean"]
+z_mode = np.round(z_means).astype(int)
 
-# Check R-hat (convergence) & effective sample size (ESS)
-rhat = trace.get_rhat()  # R-hat values to check convergence
-ess = trace.get_ess()  # Effective sample size for each variable
+print("\nConsensus answer key (rounded posterior mean):\n", z_mode.values)
 
-print("R-hat values:", rhat)
-print("Effective sample sizes:", ess)
-
-# Posterior distribution plot for D & Z
-pm.plot_posterior(trace, var_names=["D", "Z"])
+# Plot consensus answers
+az.plot_posterior(trace, var_names=["Z"], hdi_prob=0.94)
+plt.suptitle("Posterior Distributions of Consensus Answers", y=1.02)
+plt.tight_layout()
 plt.show()
 
-# Additional visualization for pair plots (relationships between D & Z)
-pm.plot_pair(trace, var_names=["D", "Z"])
-plt.show()
+# --- Naive aggregation ---
+naive_key = (X.mean(axis=0) > 0.5).astype(int)
+print("\nNaive majority vote answer key:\n", naive_key)
+
+# Compare naive vs. model consensus
+differences = naive_key != z_mode.values
+diff_indices = np.where(differences)[0]
+print(f"\nQuestions with different answers between naive and model: {diff_indices}")
