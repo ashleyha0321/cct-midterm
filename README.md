@@ -6,4 +6,4 @@ Bernoulli prior (0,1). I attempted to choose priors that were more moderate in a
 reflects a belief that informants hold average competence levels while maintaining some flexibility. The uniform Bernoulli prior for the consensus answer paramaters was appropriate because it makes it so that the true answer is equally likely to be 0 or 1. This reflects minimal prior assumption.   
 The results from the model revealed differeing competence among the 10 informants, with
 the most competent being D[5] scoring ~0.906 and the least competent being D[2] scoring ~0.37. Based on the R-hat values staying close to 1 with no divergences, it seems that the model convergence 
-was a success. However, a few discrete consensus variables displayed a slightly greater R-hat and lower effective sample sizes.
+was a success. However, a few discrete consensus variables displayed a slightly greater R-hat and lower effective sample sizes. During my first run of the model very high R-hat values, but was able to fix it by adjusting the sampling portion of the model. 
